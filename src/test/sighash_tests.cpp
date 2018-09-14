@@ -16,6 +16,7 @@
 #include <version.h>
 
 #include <iostream>
+#include <fstream>
 
 #include <boost/test/unit_test.hpp>
 
@@ -81,6 +82,14 @@ uint256 static SignatureHashOld(CScript scriptCode, const CTransaction& txTo, un
     // Serialize and hash
     CHashWriter ss(SER_GETHASH, SERIALIZE_TRANSACTION_NO_WITNESS);
     ss << txTmp << nHashType;
+    
+    // Print hash pre-image
+    CDataStream ss1(SER_NETWORK, PROTOCOL_VERSION);
+    ss1 << txTmp << nHashType;
+    std::fstream file;
+    file.open("sighash-preimage-tests.txt", std::ios_base::app);
+    file << HexStr(ss1.begin(), ss1.end()) << "\n";
+
     return ss.GetHash();
 }
 

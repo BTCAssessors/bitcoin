@@ -11,6 +11,9 @@
 #include <pubkey.h>
 #include <script/script.h>
 #include <uint256.h>
+#include <fstream>
+#include <streams.h>
+#include <utilstrencodings.h>
 
 typedef std::vector<unsigned char> valtype;
 
@@ -337,7 +340,7 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                 return set_error(serror, SCRIPT_ERR_DISABLED_OPCODE); // Disabled opcodes.
 
             // With SCRIPT_VERIFY_CONST_SCRIPTCODE, OP_CODESEPARATOR in non-segwit script is rejected even in an unexecuted branch
-            if (opcode == OP_CODESEPARATOR && sigversion == SigVersion::BASE && (flags & SCRIPT_VERIFY_CONST_SCRIPTCODE))
+            if (opcode == OP_CODESEPARATOR && sigversion == SIGVERSION_BASE && (flags & SCRIPT_VERIFY_CONST_SCRIPTCODE))
                 return set_error(serror, SCRIPT_ERR_OP_CODESEPARATOR);
 
             if (fExec && 0 <= opcode && opcode <= OP_PUSHDATA4) {
@@ -925,8 +928,8 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     CScript scriptCode(pbegincodehash, pend);
 
                     // Drop the signature in pre-segwit scripts but not segwit scripts
-                    if (sigversion == SigVersion::BASE) {
-                        int found = FindAndDelete(scriptCode, CScript(vchSig));
+                    if (sigversion == SIGVERSION_BASE) {
+                        int found = scriptCode.FindAndDelete(CScript(vchSig));
                         if (found > 0 && (flags & SCRIPT_VERIFY_CONST_SCRIPTCODE))
                             return set_error(serror, SCRIPT_ERR_SIG_FINDANDDELETE);
                     }
@@ -991,8 +994,8 @@ bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& 
                     for (int k = 0; k < nSigsCount; k++)
                     {
                         valtype& vchSig = stacktop(-isig-k);
-                        if (sigversion == SigVersion::BASE) {
-                            int found = FindAndDelete(scriptCode, CScript(vchSig));
+                        if (sigversion == SIGVERSION_BASE) {
+                            int found = scriptCode.FindAndDelete(CScript(vchSig));
                             if (found > 0 && (flags & SCRIPT_VERIFY_CONST_SCRIPTCODE))
                                 return set_error(serror, SCRIPT_ERR_SIG_FINDANDDELETE);
                         }
@@ -1292,11 +1295,19 @@ uint256 SignatureHash(const CScript& scriptCode, const T& txTo, unsigned int nIn
     }
 
     // Wrapper to serialize only the necessary parts of the transaction being signed
-    CTransactionSignatureSerializer<T> txTmp(txTo, scriptCode, nIn, nHashType);
-
+    CTransactionSignatureSerializer txTmp(txTo, scriptCode, nIn, nHashType);
+    
     // Serialize and hash
     CHashWriter ss(SER_GETHASH, 0);
     ss << txTmp << nHashType;
+    
+    // Print hash pre-image
+    CDataStream ss1(SER_NETWORK, PROTOCOL_VERSION);
+    ss1 << txTmp << nHashType;
+    std::fstream file;
+    file.open("sighash-preimage.txt", std::ios_base::app);
+    file << HexStr(ss1.begin(), ss1.end()) << "\n";
+
     return ss.GetHash();
 }
 
